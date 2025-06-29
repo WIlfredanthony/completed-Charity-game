@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Water Drop Challenge</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="logo">
+    <svg width="60" height="60" viewBox="0 0 60 60" style="vertical-align:middle;">
+      <circle cx="30" cy="30" r="28" fill="#ffe066" stroke="#e1b800" stroke-width="4"/>
+      <path d="M30 12 Q38 28 30 48 Q22 28 30 12 Z" fill="#1976d2" stroke="#1565c0" stroke-width="2"/>
+      <ellipse cx="30" cy="32" rx="5" ry="10" fill="#4fc3f7" opacity="0.7"/>
+    </svg>
+    <span class="logo-text">Charity Water</span>
+  </div>
+  <div id="game-container">
+    <div id="score">Score: 0</div>
+    <canvas id="game-canvas" width="400" height="600"></canvas>
+    <div id="start-screen" class="overlay">
+      <h1>Water Drop Challenge</h1>
+      <p>Use arrow keys to move. Collect clean water, avoid obstacles!</p>
+      <button id="start-btn">Start Game</button>
+    </div>
+    <div id="game-over-screen" class="overlay" style="display:none;">
+      <h1>Game Over</h1>
+      <div id="final-score"></div>
+      <button id="restart-btn">Restart</button>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
