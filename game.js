@@ -6,9 +6,55 @@ const gameOverScreen = document.getElementById('game-over-screen');
 const finalScore = document.getElementById('final-score');
 const startBtn = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
+const difficultySelect = document.getElementById('difficulty-select');
 
-let gameInterval, obstacleInterval, collectibleInterval;
+const DIFFICULTY_SETTINGS = {
+  easy: {
+    winPoints: 50,
+    timeLimit: 180, // seconds
+    obstacleInterval: 1600,
+    collectibleInterval: 1800
+  },
+  normal: {
+    winPoints: 100,
+    timeLimit: 120,
+    obstacleInterval: 1200,
+    collectibleInterval: 1500
+  },
+  hard: {
+    winPoints: 150,
+    timeLimit: 60,
+    obstacleInterval: 800,
+    collectibleInterval: 1100
+  }
+};
+
+let gameInterval, obstacleInterval, collectibleInterval, timerInterval;
 let score, player, obstacles, collectibles, gameActive, lives;
+let difficulty = 'normal';
+let winPoints = 100;
+let timeLimit = 120;
+let timeLeft = 120;
+let obstacleSpawnRate = 1200;
+let collectibleSpawnRate = 1500;
+
+let milestoneMessages = [
+  { score: 10, message: "Halfway there!" },
+  { score: 25, message: "Great job! Keep going!" },
+  { score: 50, message: "Amazing! You're a water hero!" },
+  { score: 75, message: "Almost there!" },
+  { score: 100, message: "Incredible! You reached 100!" }
+];
+let shownMilestones = new Set();
+
+// Add splash sound if it doesn't already exist
+let splashAudio = null;
+function playSplash() {
+  // Always create a new Audio instance for reliable playback
+  const audio = new Audio('splash-6213.mp3');
+  audio.volume = 1.0;
+  audio.play();
+}
 
 function resetGame() {
   score = 0;
@@ -19,6 +65,12 @@ function resetGame() {
   lives = 3;
   scoreDisplay.textContent = 'Score: 0';
   updateLivesDisplay();
+  timeLeft = timeLimit;
+  updateTimerDisplay();
+  shownMilestones.clear();
+  // Hide milestone message if present
+  let milestoneElem = document.getElementById('milestone-message');
+  if (milestoneElem) milestoneElem.style.opacity = '0';
 }
 
 // Draw hearts for lives at the top right
@@ -267,6 +319,80 @@ function moveCollectibles() {
   collectibles = collectibles.filter(col => col.y < canvas.height);
 }
 
+function updateTimerDisplay() {
+  let timerElem = document.getElementById('timer');
+  if (!timerElem) {
+    timerElem = document.createElement('div');
+    timerElem.id = 'timer';
+    timerElem.style.textAlign = 'center';
+    timerElem.style.fontSize = '1.2em';
+    timerElem.style.marginBottom = '6px';
+    scoreDisplay.parentNode.insertBefore(timerElem, scoreDisplay.nextSibling);
+  }
+  timerElem.textContent = `Time Left: ${timeLeft}s`;
+}
+
+function startTimer() {
+  updateTimerDisplay();
+  timerInterval = setInterval(() => {
+    if (!gameActive) return;
+    timeLeft--;
+    updateTimerDisplay();
+    if (timeLeft <= 0) {
+      gameActive = false;
+      endGame(true); // true = time up
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+}
+
+function checkWinCondition() {
+  if (score >= winPoints) {
+    gameActive = false;
+    endGame(false, true); // false = not time up, true = win
+  }
+}
+
+function showMilestoneMessage(msg) {
+  let milestoneElem = document.getElementById('milestone-message');
+  if (!milestoneElem) {
+    milestoneElem = document.createElement('div');
+    milestoneElem.id = 'milestone-message';
+    milestoneElem.style.position = 'absolute';
+    milestoneElem.style.top = '60px';
+    milestoneElem.style.left = '0';
+    milestoneElem.style.right = '0';
+    milestoneElem.style.textAlign = 'center';
+    milestoneElem.style.fontSize = '1.3em';
+    milestoneElem.style.fontWeight = 'bold';
+    milestoneElem.style.color = '#1976d2';
+    milestoneElem.style.textShadow = '1px 2px 6px #fff, 0 1px 0 #1976d2';
+    milestoneElem.style.zIndex = '10';
+    milestoneElem.style.pointerEvents = 'none';
+    milestoneElem.style.transition = 'opacity 0.5s';
+    milestoneElem.style.opacity = '0';
+    document.getElementById('game-container').appendChild(milestoneElem);
+  }
+  milestoneElem.textContent = msg;
+  milestoneElem.style.opacity = '1';
+  setTimeout(() => {
+    milestoneElem.style.opacity = '0';
+  }, 1800);
+}
+
+function checkMilestones(score) {
+  for (let i = 0; i < milestoneMessages.length; i++) {
+    const milestone = milestoneMessages[i];
+    if (score >= milestone.score && !shownMilestones.has(milestone.score)) {
+      showMilestoneMessage(milestone.message);
+      shownMilestones.add(milestone.score);
+    }
+  }
+}
+
 function checkCollisions() {
   // Obstacles
   obstacles = obstacles.filter(obs => {
@@ -278,6 +404,7 @@ function checkCollisions() {
       updateLivesDisplay();
       if (lives <= 0) {
         gameActive = false;
+        endGame(); // Ensure endGame is called immediately when lives run out
       }
       return false; // Remove obstacle on collision
     }
@@ -294,13 +421,17 @@ function checkCollisions() {
         updateLivesDisplay();
         if (lives <= 0) {
           gameActive = false;
+          endGame(); // Ensure endGame is called immediately when lives run out
         }
       } else {
         score += 10;
         scoreDisplay.textContent = 'Score: ' + score;
-        // Fill the bucket, max 1.0
         player.fill = Math.min(1, player.fill + 0.18);
         player.splash = 1;
+        // Play splash sound every time it hits the bucket
+        playSplash();
+        checkWinCondition();
+        checkMilestones(score);
       }
       return false;
     }
@@ -320,7 +451,8 @@ function gameLoop() {
   if (gameActive) {
     requestAnimationFrame(gameLoop);
   } else {
-    endGame();
+    stopTimer();
+    // endGame() is called from checkCollisions or timer
   }
 }
 
@@ -338,11 +470,18 @@ function spawnCollectible() {
   collectibles.push({ x, y: -size, size, bad: isBad });
 }
 
-function endGame() {
+function endGame(timeUp = false, win = false) {
   clearInterval(obstacleInterval);
   clearInterval(collectibleInterval);
+  stopTimer();
   gameOverScreen.style.display = 'flex';
-  finalScore.textContent = 'Your Score: ' + score;
+  if (win) {
+    finalScore.textContent = `You Win! Score: ${score}`;
+  } else if (timeUp) {
+    finalScore.textContent = `Time's Up! Score: ${score}`;
+  } else {
+    finalScore.textContent = 'Your Score: ' + score;
+  }
 }
 
 document.addEventListener('keydown', e => {
@@ -352,18 +491,35 @@ document.addEventListener('keydown', e => {
 });
 
 startBtn.onclick = () => {
+  // Get selected difficulty
+  difficulty = difficultySelect.value;
+  const settings = DIFFICULTY_SETTINGS[difficulty];
+  winPoints = settings.winPoints;
+  timeLimit = settings.timeLimit;
+  obstacleSpawnRate = settings.obstacleInterval;
+  collectibleSpawnRate = settings.collectibleInterval;
+
   startScreen.style.display = 'none';
   gameOverScreen.style.display = 'none';
   resetGame();
   gameLoop();
-  obstacleInterval = setInterval(spawnObstacle, 1200);
-  collectibleInterval = setInterval(spawnCollectible, 1500);
+  obstacleInterval = setInterval(spawnObstacle, obstacleSpawnRate);
+  collectibleInterval = setInterval(spawnCollectible, collectibleSpawnRate);
+  startTimer();
 };
 
 restartBtn.onclick = () => {
+  // Use last selected difficulty
+  const settings = DIFFICULTY_SETTINGS[difficulty];
+  winPoints = settings.winPoints;
+  timeLimit = settings.timeLimit;
+  obstacleSpawnRate = settings.obstacleInterval;
+  collectibleSpawnRate = settings.collectibleInterval;
+
   gameOverScreen.style.display = 'none';
   resetGame();
   gameLoop();
-  obstacleInterval = setInterval(spawnObstacle, 1200);
-  collectibleInterval = setInterval(spawnCollectible, 1500);
+  obstacleInterval = setInterval(spawnObstacle, obstacleSpawnRate);
+  collectibleInterval = setInterval(spawnCollectible, collectibleSpawnRate);
+  startTimer();
 };
